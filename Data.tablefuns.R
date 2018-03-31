@@ -1,4 +1,6 @@
 '%notin%'<-Negate('%in%')
+
+####Converts lists and named vectors to data.tables with column names###
 listrep2datatable_fn<-function(X,left_varname=NULL,right_varname=NULL){
   require(data.table)
   if(is.null(left_varname)){left_varname="V1"} else{left_varname=left_varname}
@@ -81,51 +83,80 @@ char_quote_fn<-function(X,sep_char=","){
   
 }
 
-indicator_converter<-function(X,IDvars=NULL){
+indicator_converter<-function(X,IDvars=NULL,verbose=T){
   require(data.table)
   X<-data.table(X)
   if(!is.null(IDvars)){
     X_noid<-copy(X)[,-IDvars,with=F][,lapply(copy(.SD),function(i) if(is.character(i)|is.factor(i)){as.factor(i)} else{as.numeric(i)})]
-  } else {
+    } else {
       X_noid<-copy(X)[,lapply(copy(.SD),function(i) if(is.character(i)|is.factor(i)){as.factor(i)} else{as.numeric(i)})]
       }
   categorical_vars<-names(which(sapply(X_noid,is.factor)))
   if(length(categorical_vars)>0){
-    cat("Assuming the following are the only factors you need to convert:")
-    char_quote_fn(categorical_vars)
-    cat("\n")
+    if(verbose){
+      cat("Assuming the following are the only factors you need to convert:")
+      char_quote_fn(categorical_vars)
+      cat("\n")
+      }
     cat_ref<-paste0(categorical_vars,unlist(lapply(categorical_vars,function(i) levels(copy(X_noid)[[i]])[1])))
     
-    
     categorical_list<-lapply(categorical_vars,function(i) data.table(data.frame(model.matrix(as.formula(paste("~",i)),model.frame(X_noid,na.action = na.pass)))))
-    
-    categorical_expand<-Reduce(cbind,lapply(seq_along(categorical_list),function(i) categorical_list[[i]][,cat_ref[i]:=1*(rowSums(copy(.SD))==1)][,-"X.Intercept.",with=F]))
-    
-    if(!is.null(IDvars)){
-      if(length(X_noid[,-categorical_vars,with=F])>0){
-        Comb_data<-cbind(X[,IDvars,with=F],X_noid[,-categorical_vars,with=F],categorical_expand)
-      } else {Comb_data<-cbind(X[,IDvars,with=F],categorical_expand)}
-      
+categorical_expand<-Reduce(cbind,lapply(seq_along(categorical_list),function(i) categorical_list[[i]][,cat_ref[i]:=1*(rowSums(copy(.SD))==1)][,-"X.Intercept.",with=F]))
+  if(!is.null(IDvars)){
+    if(length(X_noid[,-categorical_vars,with=F])>0){
+Comb_data<-cbind(X[,IDvars,with=F],X_noid[,-categorical_vars,with=F],categorical_expand)
+    } else {
+      Comb_data<-cbind(X[,IDvars,with=F],categorical_expand)
+      }
     } else {
       if(length(X_noid[,-categorical_vars,with=F])>0){
         Comb_data<-cbind(X_noid[,-categorical_vars,with=F],categorical_expand)
-      } else {Comb_data<-categorical_expand}
+        } else {
+          Comb_data<-categorical_expand
+        }
     }
-    return(Comb_data)
-  } else {warning("No categorical variables detected. You need to convert the variables of interest to factors before the indicator_converter function can be used.",call. = F);return(X)}
+
+  return(Comb_data)
+  } else {
+  warning("No categorical variables detected. You need to convert the variables of interest to factors before the indicator_converter function can be used.",call. = F)
+    return(X)
+  }
 }
-###Used to extract name of the dataframe in match.call() if it is complicated (i.e., removing certain column names on the fly without having to store it first)
+
+
+###Used to extract name of the dataframe in match.call() if it is complicated (i.e., removing certain column names on the fly without having to store it first) Case 1: X[["Hi"]]; Case 2: data.table(X[["Hi"]]); Case 3: data.table(data.frame(X)); Case 4: data.table(X["Hi"]["Hey"])
+
 pairlist_converter<-function(X){
   if(tryCatch(as.name(X),error=function(e) 1)==1){
-    if(grepl("^c\\(",deparse(X))){##If call is entered as a character vector it retrieves elements
+    if(grepl("^c\\(",deparse(X)[1])){##If call is entered as a character vector it retrieves elements
       X<-as.character(trimws(gsub("\\)","",gsub('\\"',"",gsub("^c\\(","",unlist(strsplit(deparse(X),split=",")))))))
+      } else {##More complex entry
+        X_tmp<-unlist(strsplit(gsub("\\(|\\)"," ",as.list(X))," "))#First Split by parenthesis
+        X_tmp2<-unlist(lapply(X_tmp,function(i) strsplit(i,'\\"')))#Second by quotes
+        X_tmp3<-unlist(lapply(X_tmp2,function(i) strsplit(i,"\\]")))#Third by brackets
+        if(sum(grepl("\\[",X_tmp3))>0){##If there is subsetting
+          X_tmp3_brack<-X_tmp3[c(which(grepl("\\[",X_tmp3)))]
+          if(sum(grepl("^\\w",X_tmp3_brack))==0&&grepl("\\[",X_tmp)[1]==F){##Case where data is wrapped by another function before subsetting
+            X_tmp4<-X_tmp3[c(which(grepl("\\[",X_tmp3)))[1]-1]
+            } else {##Case where it is not wrapped first(i.e., "X[," exists)
+              if(sum(grepl("^\\w",X_tmp3_brack))==0){
+                X_tmp4<-tryCatch(X_tmp3[max(which(grepl("data.table|data.frame|tbl_df",X_tmp3)))+1],warning=function(w) 1) ##Subsetting but no wrapping
+                if(X_tmp4==1){ ##In case the user enters one subsetting
+                  X_tmp4<-X_tmp3[2]
+                  }
+                } else{
+                  X_tmp3_brack_words<-X_tmp3_brack[which(grepl("^\\w",X_tmp3_brack))]
+                  X_tmp4<-unlist(strsplit(X_tmp3_brack_words,"\\["))[1]
+                }##Subsetting and wrapping around subsetting and multiple subsetting
+              }
+          X<-X_tmp4
+          } else{##No subsetting but function wrapping
+            X<-X_tmp[length(X_tmp)]
+          }
+        }
     } else {
-      pairlist_ind<-which(is.na(lapply(as.list(X),function(i) match(1,which(grepl("^[a-z]",tolower(i))))))==F)[1]#This points to the list element that represents the first occurance of an object that can be converted into a name which should be the name of the dataframe.
-      X<-as.list(X)[[pairlist_ind]]
-    }
-    
-    
-  } else {X<-X}##Allows for sloppy data.table syntax while still being able to detect the name of the data table.
+      X<-X
+      }##Allows for sloppy data.table syntax while still being able to detect the name of the data table.
   return(X)
 }
 
@@ -133,14 +164,17 @@ orig_call_fn<-function(X){##X needs to be a specific element of the current func
   X<-as.list(match.call(sys.function(which=1),call = sys.call(which=1)))[[X]]
 }
 
-text_print<-function(X,filename=NULL){
+text_print<-function(X,filename=NULL,verbose=T){
   if(is.null(filename)){
     tablename<-pairlist_converter(as.list(match.call())$X)
-  } else tablename<-filename
-  
-  write.table(X,paste0(tablename,".txt"),sep=",",row.names = F,quote = F)
-  print(paste0("Writing ",sQuote(tablename)," to",getwd()))
+    } else tablename<-filename
+    
+    write.table(X,paste0(tablename,".txt"),sep=",",row.names = F,quote = F)
+    if(verbose){
+      print(paste0("Writing ",sQuote(tablename)," to",getwd()))
+    }
 }
+
 
 rev_indicator_converter<-function(X,ind_name,IDvars=NULL){
   #X is data.table and Ind_name is a char vector of stems for recombining cat variables
@@ -164,4 +198,60 @@ Global_name_gen<-function(namevector,dataframe_name){
     if(exists(base_names[[1]],envir=.GlobalEnv)==F){break}
   }
   return(base_names)
+}
+
+#####This function controls the conversion of categorical variables to numeric variables####18:02 
+cat2facNum_converter_fn<-function(varname,ref="default",verbose=T){
+  ll<-substitute(varname)
+  ll_name<-as.name(pairlist_converter(ll))
+  ##Processing how varname was entered.
+  if(sys.nframe()==1){##If called from Global Environment
+    ll_name_check<-tryCatch(sum(grepl("data",class(eval(ll_name)))),error=function(e) -1)
+    if(ll_name_check>0){##Dataframe notation
+      ll_name<-as.character(ll)[which(as.character(ll)%notin%c(as.character(ll_name),"[["))]
+      if(length(ll_name)>1){##Case where it is a data.frame notation (i.e., X[,"var"])
+        blank_elements<-which(as.character(ll)%in%c(""))
+        ll_name<-as.name(as.character(ll)[-c(which(grepl("\\W",as.character(ll))),blank_elements)])}
+    } else if(ll_name_check==-1){##Atomic vector notation
+      ll_name<-pairlist_converter(ll)
+    } else{##Current environment variable call (not in a data frame)
+      ll_name<-as.name(ll_name)
+    }
+  } else{##If called within another function
+    ll<-varname
+  }
+  if(is.numeric(eval(ll))){
+    ll_val<-factor(eval(ll))
+    if(ref!="default"){
+      ll_val<-factor(ll_val,levels=c(ref,levels(eval(ll_val))[-match(ref,levels(eval(ll_val)))]))
+    }
+    if(verbose){
+      print(paste(sQuote(ll_name),"is not a factor.  Assuming",levels(ll_val)[1],"will be the reference group."))
+    }###End of numeric loop
+  } else if(is.factor(eval(ll))){
+    if(ref!="default"){
+      ll_val<-factor(eval(ll),levels=c(ref,levels(eval(ll))[-match(ref,levels(eval(ll)))]))
+      if(verbose){
+        print(paste0(sQuote(ll_name)," was already a factor. Set reference variable to ",sQuote(ref)," as requested."))
+      }
+    } else{
+      ll_val<-eval(ll)
+      if(verbose){
+        print(paste0(sQuote(ll_name)," was already a factor. No changes made."))
+      }
+    }####End of factor loop
+  } else{
+    ll_val<-factor(eval(ll))
+    if(ref!="default"){
+      ll_val<-factor(ll_val,levels=c(ref,levels(eval(ll_val))[-match(ref,levels(eval(ll_val)))]))
+    }
+    if(verbose){
+      print(paste0("Converted ",sQuote(ll_name)," to class factor with reference category ",sQuote(levels(ll_val)[1]),"."))
+    }
+  }
+  if(sum(is.na(ll_val))!=0){
+    warning(paste0("The reference variable you specified is not found in ",sQuote(ll_name),". Conversion resulted in NAs."),call. = F)
+  }
+  
+  return(ll_val)
 }
