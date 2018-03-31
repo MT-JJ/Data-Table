@@ -1,0 +1,127 @@
+cor.prob<-function (X,use="complete.obs",method="pearson",alternative="two.sided") {
+  namesc<-colnames(X)
+  n=ncol(X)
+  test_list<-lapply(lapply(combn(namesc,2,simplify = F),function(i) paste0("~",paste0(i,collapse="+"))),function(j) cor.test(as.formula(j),data=X,method = method,alternative = alternative))
+  UniqueR<-round(na.omit(matrix(t(car::recode(upper.tri(cor(X)),"'FALSE'=NA")*cor(X,use=use,method=method)))),digits=4)
+  
+  UniqueRsig<-data.table(data.frame(Corr=UniqueR,p_val=unlist(lapply(test_list,"[[","p.value")),Corr_form=format(UniqueR,nsmall=4)))[,Corr_sig:=paste0(Corr_form,ifelse(abs(p_val) < .001, "***", ifelse(abs(p_val) < .01, "** ", ifelse(abs(p_val) < .05, "* ", " "))))][,p_val:=format(round(p_val,digits=4),nsmall=4)][,Test_name:=unlist(lapply(test_list,"[[","data.name"))]
+ 
+  test_fn<-function(X){
+    starting<-list(X)
+    Y<-UniqueRsig$Corr_sig
+    Z<-UniqueRsig$p_val
+    listnames<-UniqueRsig$Test_name
+    for(i in seq_along(X)){
+    starting[[i]]<-rbind(Test=listnames[1:X[i]],Corr_sig=Y[1:X[i]],p_val=Z[1:X[i]])
+    Y<-Y[-c(1:X[i])]
+    Z<-Z[-c(1:X[i])]
+    listnames<-listnames[-c(1:X[i])]
+    }
+    return(starting)
+  }
+ragged_corlist<-unlist(list(lapply(test_fn((n-1):0),function(i) unlist(melt(data.table(i,keep.rownames = T),id.vars="rn")[rn!="Test",value])),list(character(0))),recursive = F)[-n]
+
+even_corlist<-setcolorder(data.table(data.frame(setattr(lapply(seq_along(namesc),function(i) c(rep(c(NA,1,NA),c(2*(i-1),1,1)),ragged_corlist[[i]])),"names",namesc)))[,Items:=rapply(lapply(namesc,function(i) c(i,"p_value")),c)],c("Items",namesc))
+return(even_corlist)
+}
+
+Remove_stars_corr<-function(X){##Use with cor.prob object
+  require(Matrix)
+  X_nostars<-data.table(X)[Items!="p_value"][,seq_along(X):=lapply(.SD,function(i) gsub("*","",i,fixed=T)),.SDcols=seq_along(X)]
+  char_cols<-suppressWarnings(names(which(X_nostars[,{sapply(copy(.SD),function(i) sum(is.na(as.numeric(i))))}]==nrow(X_nostars))))
+  
+  nolabel_col<-colnames(copy(X_nostars)[,-char_cols,with=F])
+  print(nolabel_col)
+    
+  X_no_label<-matrix(forceSymmetric(data.matrix(X_nostars[,-char_cols,with=F]),uplo="L"),ncol=length(nolabel_col),dimnames = list(NULL,nolabel_col))
+  
+  return(X_no_label)
+}
+
+Ident_fn<-function(X,p=ncol(X)){
+  a=(p*(p+1))/2
+  b=0
+  m=1
+  dof=list()
+  while(a>=b){
+    dof[[m]]<-list(Scenario=c(p=p,m=m),Estimated_Parameters=c(Total_Loadings=p*m,VarCov=(m*(m+1))/2,Resid_Variance=p,Max_Restricted_Fac_Variance=m^2,Total_Param_Est=(p*m)+((m*(m+1))/2)+p-m^2,Total_Info_Available=a))
+    b=(p*m)+((m*(m+1))/2)+p-m^2
+    m=m+1;
+  }
+  final_dof<- lapply(lapply(setattr(lapply(dof,"[[",2),"names",sapply(1:length(dof),function(i) paste(dof[[i]]$Scenario["m"],"Factor Scenario",sep="-"))),function(j) data.table(data.frame(j),keep.rownames=T)[,ID:=1:.N]),function(k) setnames(k,c("TypeDOF","DOF","ID")))
+  for(i in 1:length(final_dof)){
+    colnames(final_dof[[i]])[2]<-names(final_dof)[i]
+  }
+  final_dof<-Reduce(function(...) merge(...,by=c("ID","TypeDOF"),all=T), final_dof)[,-"ID",with=F]
+  return(final_dof)
+}
+
+cor_check<-function(tri_cors_obj,cutoff){
+  
+  corAll<-data.table(tri_cors_obj)[Items!="p_value"][,seq_along(tri_cors_obj):=lapply(.SD,function(i) gsub("*","",i,fixed=T)),.SDcols=seq_along(tri_cors_obj)][,seq_along(tri_cors_obj):=lapply(.SD,function(i) car::recode(i,"'1'=NA")),.SDcols=seq_along(tri_cors_obj)]
+  corcuts<-lapply(cutoff,function(j) copy(corAll)[,-1,with=F][,lapply(copy(.SD),function(x) ifelse(abs(as.numeric(x))>=j,x,NA))])
+  
+  Deleted_vars_list<-lapply(corcuts,function(i) names(which(sapply(i,is.logical))))
+  Deleted_var_pos<-lapply(seq_along(corcuts),function(i) match(Deleted_vars_list[[i]],colnames(corcuts[[i]])))
+  
+  for(i in seq_along(Deleted_vars_list)){print(paste("The following items have no correlations at or above",cutoff[i],"and have been removed:",paste0(Deleted_vars_list[[i]],collapse = ",")))} 
+  ###Modifying the original correlation matrix for using in factor analysis.
+ corAll<-corAll[,-1,with=F][,lapply(copy(.SD),as.numeric)][,data.matrix(copy(.SD))]
+ diag(corAll)<-1
+ 
+ 
+#mod_corcuts<-lapply(lapply(corcuts,function(i) i[][,data.matrix(copy(.SD))]),function(k) diag(k)<-1)
+ 
+  reduced_corcuts<-setattr(append(list(setcolorder(data.table(corAll)[,Items:=colnames(corAll)],c(length(data.table(corAll))+1,seq_along(data.table(corAll))))),corcuts),"names",c("All_cors",paste0("Cor_Above",cutoff)))
+  
+  return(reduced_corcuts)
+}
+
+VSS_fn<-function(x, n = 8, rotate = "varimax", diagonal = FALSE, fm = "pa", n.obs=NULL,plot=TRUE,title="Very Simple Structure",use="pairwise",cor="cor",...){
+  Initial_VSS<-setNames(lapply(1:length(x), function(i) vss(x[[i]], n = n, rotate = rotate, diagonal = diagonal, fm = fm, n.obs=n.obs,plot=plot,title=paste("Very Simple Structure for",names(x)[i]),use=use,cor=cor,...)),names(x))
+  
+  Final_VSS<-setattr(lapply(1:length(Initial_VSS), function(i) setnames(data.table(Initial_VSS[[i]]$vss.stats)[,list(dof,chisq,prob,fit,cfit.1,cfit.2,RMSEA,SRMR)],c("DegFreedom","Chisq","p-value","Fit","Comp1Fit","Comp2Fit","RMSEA","SRMR"))[,Velicer_Map:=Initial_VSS[[i]]$map]),"names",names(Initial_VSS))
+  
+  return(Final_VSS)
+}
+
+
+efa_sum_fn<-function(X){
+  Variances<-data.frame(Common_Var=X$communality,Unique_Var=X$uniquenesses,Complexity=X$complexity)
+  
+  Statistics<-mutate_if(rbind(setnames(data.table(setattr(data.frame(t(X$RMSEA)),"row.names","RMSEA"),keep.rownames = "Statistic"),old="RMSEA",new="Value"),setnames(data.table(t(t(c(N=X$n.obs,DegofFree=X$dof,SRMR=X$rms,SRMR_DOF=X$crms,TotalFit=X$fit,OffDiagFit=X$fit.off))),keep.rownames="Statistic"),old="V1",new="Value"),fill=T),is.numeric,funs(round(.,digits = 4)))
+  
+  Factor_corr<-X$Phi
+  
+  return(list(Variances=Variances,Statistics=Statistics,Factor_correlations=Factor_corr))
+  
+}
+
+print_load<-function(X,cutoff,Y){
+  raw_load<-X
+  flagged<-abs(raw_load)>=cutoff
+  n<-ncol(raw_load)
+  colnames(raw_load)<-paste("Factor",1:n)
+  mat_load<-flagged*raw_load
+  My_order<-do.call(order, c(data.frame(abs(mat_load[, 1:n])*-1)))
+  mat_load_order<-mat_load[My_order,]
+  final_load_order<-data.table(mat_load_order,keep.rownames = "Items")[,ID:=1:.N]
+  return(final_load_order)
+}
+
+Indeterminancy_fn<-function(X,pattern=T,W=NULL,Scores=NULL){
+  require(MASS)
+  if(is.null(W)){W<-X$weights} else{W=W}
+  Css<-t(W)%*%X$r%*%W
+  Lss<-diag(sqrt(diag(Css)))
+  if(pattern==T) {Y<-X$loadings} else {Y<-X$Structure}
+  Rfs<-matrix(t(Y)%*%W%*%ginv(Lss),ncol=ncol(Lss),dimnames = list(colnames(loadings(X)),colnames(loadings(X))))
+  Univ<-mapply(function(i) na_if(i,0),data.frame(lower.tri(Rfs)*Rfs))
+  row.names(Univ)<-colnames(loadings(X))
+  if(is.null(Scores)){Scores<-X$scores} else {Scores=Scores}
+  Cor_accuracy<-cor(Scores,use="pairwise")
+  return(list(Validity=diag(Rfs),Univocality=Univ,Cor_accuracy=Cor_accuracy))
+}
+
+#setwd("~/Documents/aaaOLPD/Data Sets")
+#save.image(file = "EFA_fns.RData")

@@ -1,0 +1,68 @@
+############R-code for PSM Matching#############
+####These are the packages you should have already installed after downloading R-Studio.
+#install.packages("openxlsx","data.table","dplyr","lattice","latticeExtra","maptools","gridExtra","MatchIt","optmatch","Matching","car","psych","installr",dependencies = T)
+
+##After downloading installr you may need to install Rtools by running installr::rtools
+###https://github.com/stan-dev/rstan/wiki/Install-Rtools-for-Windows
+#For installing Rtools, attention needs to be paid in a step where we can edit the system PATH so that the C++ compiler that is included in Rtools can be used by R. As indicated by the following step, we need to check this option (not manually edit the system PATH. Once the option is checked, system PATH would be edited to include important folders of Rtools by the installation process).
+
+##install.packages("devtools")
+
+
+dir.create("~/Documents/PSM Webinar") ##Note: Normally you can skip this but is efficient for this presentation.
+
+##Set your working directory to where you want the files downloaded. This is default for this presentation.
+setwd("~/Documents/PSM Webinar")
+
+####This is a link that will auto download the R functions to run PSM
+load(url("https://github.com/jasonrpro/Data.tablefuns/blob/master/PSM_Data.tablefuns_noSample.RData?raw=true"))
+
+###Read in your data set - normally you will read in an excel file stored in your working directory like:
+#testset1<-read.xlsx("testset1.xlsx")
+
+load(url("https://github.com/jasonrpro/Data.tablefuns/blob/master/Webinar3-19-18_dataset.RData?raw=true"))
+
+
+###Add the name of your data set as an excel document. For the webinar testset1 opens immediately with URL. If testset1 is saved as an excel file in the working directory you set above you would run the follwing but without the '#'.
+#testset1<-read.xlsx("yourfile.xlsx")
+
+###The full options are as follows
+library(openxlsx)
+library(data.table)
+testset1<-data.table(read.xlsx("outcome_test.xlsx"))
+set1_before<-PSM_diagnostics(Matchingcovs=testset1,Treatvar = "Group",ID_vars = "ID",outcome_vars=c("MCA_math","MCA_read"),convert_ind = F,ref_vars = c("GenderFemale","FRLN","Race_EthnicityAmerican.Indian","SPEDN"),pretty_print = F)
+
+set2_before<-PSM_diagnostics(Matchingcovs = testset2,Treatvar = "Group",ID_vars = "ID",convert_ind = T,pretty_print = F,missing_check = T)
+
+set3_before<-PSM_diagnostics(Matchingcovs = testset3,Treatvar = "Group",ID_vars = "ID",convert_ind = T,pretty_print = F,missing_check = T)
+
+
+NNM_sets<-Nearest_Match_fn(Matchingcovs_PSM=testset1_PSM,Treatvar = "Group",ID_vars = "ID")
+
+NNM_set_cal<-Nearest_Match_fn(Matchingcovs_PSM = testset2_PSM,Treatvar = "Group",ID_vars = "ID",caliper = 0.2,exact_vars = F)
+
+Opt_sets1<-Optimal_match_fn(Matchingcovs_PSM=testset2_PSM,Treatvar = "Group",ID_vars = "ID",caliper = 0.2,global=T)
+
+Opt_sets2<-Optimal_match_fn(Matchingcovs_PSM=testset2_PSM,Treatvar = "Group",ID_vars = "ID",caliper = 0.2,exact="Age")
+
+
+No_replace<-Baseline_equiv_fn(MatchedSets = Nearest_without_replacement_testset1_PSM,Treatvar = "Group",ID_vars = "ID",pre_pooled_sd = testset1_PooledSD,Match_num = "Match_num",SD_mean_before = testset1_SDmeans,ref_var=testset1_ref,outlier_dist = 3,global=T)
+
+
+
+
+
+
+
+
+
+Replace<-Baseline_equiv_fn(MatchedSets = Nearest_with_replacement_testset3_PSM,Treatvar = "Group",ID_vars = "ID",pre_pooled_sd = testset3_PooledSD,Match_num = "Match_num",SD_mean_before = testset3_SDmeans,ref_var=testset3_ref,outlier_dist = 3,global=T)
+
+No_replace_cal<-Baseline_equiv_fn(MatchedSets = Nearest_without_replacement_1_testset3_PSM,Treatvar = "Group",ID_vars = "ID",pre_pooled_sd = testset3_PooledSD,Match_num = "Match_num",SD_mean_before = testset3_SDmeans,ref_var=testset3_ref,outlier_dist = 3,global=T)
+
+Replace_cal<-Baseline_equiv_fn(MatchedSets = Nearest_with_replacement_1_testset3_PSM,Treatvar = "Group",ID_vars = "ID",pre_pooled_sd = testset3_PooledSD,Match_num = "Match_num",SD_mean_before = testset3_SDmeans,ref_var=testset3_ref,outlier_dist = 3,global=T)
+
+Full_matches<-Baseline_equiv_fn(MatchedSets = Full_testset2_PSM,Treatvar = "Group",ID_vars = "ID",pre_pooled_sd = testset2_PooledSD,Match_num = "Match_num",SD_mean_before = testset2_SDmeans,ref_var=testset2_ref,outlier_dist = 3,global=T)
+
+
+

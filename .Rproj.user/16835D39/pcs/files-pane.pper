@@ -1,0 +1,13 @@
+{
+    "path" : "~/Documents/aaaOLPD/Data Sets/Data.table.fns",
+    "sortOrder" : [
+        {
+            "ascending" : false,
+            "columnIndex" : 4
+        },
+        {
+            "ascending" : true,
+            "columnIndex" : 2
+        }
+    ]
+}
