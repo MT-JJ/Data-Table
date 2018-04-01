@@ -49,7 +49,10 @@ PSM_diagnostics<-function(Matchingcovs,Treatvar,ID_vars,convert_ind=T,ref_vars=N
       if(length(categorical_vars)>0){
         ref_vars<-paste0(categorical_vars,unlist(lapply(categorical_vars,function(i) levels(copy(tmp_X)[[i]])[1])))
         Matchingcovs<-indicator_converter(data.table(Matchingcovs),IDvars = c(Treatvar,ID_vars),verbose=verbose)
-        print(paste0("Creating ",paste0(ref_vars,collapse=", ")," as the reference variables"))
+        if(verbose){
+          print(paste0("Creating ",paste0(ref_vars,collapse=", ")," as the reference variables"))
+        }
+        
         setnames(Matchingcovs,make.names(colnames(Matchingcovs)))###Matchingcovs contains all variables and X no reference variables
         X<-copy(Matchingcovs)[,-ref_vars,with=F]
       } else{
@@ -194,7 +197,11 @@ PSM_diagnostics<-function(Matchingcovs,Treatvar,ID_vars,convert_ind=T,ref_vars=N
       copy(final_datapsm)[,c(ID_vars,Treatvar,ref_vars),with=F]
       },error=function(e) print(paste0("Cannot create  dataframe for reference variables."))),envir = .GlobalEnv)
     
-    assign(paste(dataname,"outcome",sep="_"),tryCatch(Outcome_vars,error=function(e) print(paste0("Cannot create  dataframe for outcome variables because none indicated."))),envir = .GlobalEnv)
+    assign(paste(dataname,"outcome",sep="_"),tryCatch(Outcome_vars,error=function(e) {
+      NULL
+      if(verbose){
+        print(paste0("Cannot create  dataframe for outcome variables because none indicated."))
+      }}),envir = .GlobalEnv)
     
     assign(paste(dataname,"desc_stats",sep="_"),eval(Group_means_sds[,-grep("^i.",colnames(Group_means_sds)),with=F]),envir = .GlobalEnv)
     
