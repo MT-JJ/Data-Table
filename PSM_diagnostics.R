@@ -35,7 +35,7 @@ PSM_diagnostics<-function(Matchingcovs,Treatvar,ID_vars,convert_ind=T,ref_vars=N
                           "TRUE"={"R"},
                           {NULL})
     
-    Matchingcovs<-Impute_missing_fn(Matchingcovs,impute_method = impute_method,ignore_vars = c(ID_vars,Treatvar,verbose=verbose))
+    Matchingcovs<-Impute_missing_fn(Matchingcovs,impute_method = impute_method,ignore_vars = c(ID_vars,Treatvar),verbose=verbose)
     }
   #####Control flow statements for processing categorical variables####
   if(is.null(ref_vars)){
