@@ -12,7 +12,7 @@ Impute_missing_fn<-function(dataX,impute_method="Rosenbaum",ignore_vars=NULL,ver
     ########Start of Switch#######
     switch(toupper(substr(impute_method,1,1)),
            "R"={#####Rosenbaum's Method#######
-             Missing_numeric_values<-Missing_vars[,which(sapply(Missing_vars,is.numeric)),with=F][,sapply(copy(.SD),function(i) ceiling(max(range(i,na.rm=T)))+5)]##Get numeric values
+             Missing_numeric_values<-tryCatch(Missing_vars[,which(sapply(Missing_vars,is.numeric)),with=F][,sapply(copy(.SD),function(i) ceiling(max(range(i,na.rm=T)))+5)],error=function(e) NULL)##Get numeric values
              ##Control flow for numeric vs factor variables
              if(length(Missing_numeric_values)>0){
                Missing_vars[,names(Missing_numeric_values):=lapply(seq_along(copy(.SD)),function(i) ifelse(is.na(copy(.SD)[[i]]),Missing_numeric_values[i],copy(.SD)[[i]])),.SDcols=names(Missing_numeric_values)]##Assigning numeric values to original variables
