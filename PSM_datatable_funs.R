@@ -69,7 +69,7 @@ Nearest_Match_fn<-function(Matchingcovs_PSM,Treatvar,ID_vars,include.psm=F,dista
     Exact_all_test<-suppressWarnings(tryCatch(Matching::Match(Tr=X[[Treatvar]],X=exact_data,exact = T,caliper=NULL),error=function(e) 1))
     if(is.list(Exact_all_test)){
       Exact_all<-rbindlist(lapply(c("index.control","index.treated"),function(i) setnames(data.table(data.frame(Exact_all_test[[i]])),"ROWID")))
-      Final_matched_sets<-append(Final_matched_sets,list(Exact=unique(exact_patterns[eval(copy(X)[exact_data_IDs,on=ID_vars][Exact_all,on="ROWID"][,-c("ROWID"),with=F]),on=colnames(exact_data)],by="ID")))
+      Final_matched_sets<-append(Final_matched_sets,list(Exact=unique(exact_patterns[eval(copy(X)[exact_data_IDs,on=ID_vars][Exact_all,on="ROWID"][,-c("ROWID"),with=F]),on=colnames(exact_data)],by=ID_vars)))
       Unmatched_treatment<-append(Unmatched_treatment,list(data.table(data.frame(ID=unname(unlist(copy(X)[Exact_all_test[["index.dropped"]],ID_vars,with=F]))))))
       names(Unmatched_treatment)[3]<-"Exact"
     }
