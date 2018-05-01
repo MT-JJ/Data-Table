@@ -31,6 +31,7 @@ Impute_missing_fn<-function(dataX,impute_method="Rosenbaum",ignore_vars=NULL,ver
   } else {
     if(verbose){
       print("You indicated missing check but no variables were missing.")
+      return(X)
     }
   }
   ######Control Flow for whether there were variables to ignore#######
