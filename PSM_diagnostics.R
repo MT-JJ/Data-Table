@@ -192,16 +192,19 @@ PSM_diagnostics<-function(Matchingcovs,Treatvar,ID_vars,convert_ind=T,ref_vars=N
       } else {
         assign(paste(dataname,"PSM",sep="_"),suppressWarnings(eval(copy(final_datapsm)[,with=F])),envir = .GlobalEnv)
         }
-    
+    if(!is.null(ref_vars)){
     assign(paste(dataname,"ref",sep="_"),tryCatch({
       copy(final_datapsm)[,c(ID_vars,Treatvar,ref_vars),with=F]
       },error=function(e) print(paste0("Cannot create  dataframe for reference variables."))),envir = .GlobalEnv)
+    } else print(paste0("Cannot create  dataframe for reference variables."))
     
-    assign(paste(dataname,"outcome",sep="_"),tryCatch(Outcome_vars,error=function(e) {
+    if(!is.null(Outcome_vars)){
+      assign(paste(dataname,"outcome",sep="_"),tryCatch(Outcome_vars,error=function(e) {
       NULL
       if(verbose){
         print(paste0("Cannot create  dataframe for outcome variables because none indicated."))
       }}),envir = .GlobalEnv)
+    } else print(paste0("Cannot create  dataframe for outcome variables because none indicated."))
     
     assign(paste(dataname,"desc_stats",sep="_"),eval(Group_means_sds[,-grep("^i.",colnames(Group_means_sds)),with=F]),envir = .GlobalEnv)
     
