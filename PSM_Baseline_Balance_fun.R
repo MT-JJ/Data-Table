@@ -114,10 +114,14 @@ dataname<-pairlist_converter(as.list(match.call())$MatchedSets)
     
     Dist_SD<-sd(abs(PSM_graph_data_match$Dist))
     
-    if(length(OL_dist)>0){
+    if(length(OL_dist)>0&length(OL_dist)<=50){
       DistGraphScaleTicks=seq(0,eval(max(OL_dist)+Dist_SD),by=Dist_SD/4)
-    } else {
-        DistGraphScaleTicks<-NULL
+    } else if(length(OL_dist)>50){
+      warning(paste("Number of outliers",outlier_dist,"standard deviations away from the mean exceeded 50 which obscures the auto-generated visual. This could imply poor matches. Please specify larger 'outlier_dist' to be able to view the outlier visual and possibly consider using a different matching technique and/or specification."),call. = F)
+      DistGraphScaleTicks<-NULL
+    } else{
+      DistGraphScaleTicks<-NULL
+      print(paste("No 'outliers' greater than",outlier_dist,"were detected so outlier plot was not generated."))
         }
     
     PSM_hist_after<-histogram(as.formula(paste("~",PSM_var,"|",Treatvar)),data=Weighted_covariates_graph,group=eval(ll$Treatvar),type="count",main=paste("Predicted PSM Scores by",sQuote(ll$Treatvar)),xlab=c("PSM Scores"),col=plotcolors,strip=strip.custom(bg="lightgrey",par.strip.text=list(cex=0.7,fontface="bold")),scales=list(alternating=F,tck=c(1,0)),panel=function(x,col=col,...){
@@ -132,16 +136,13 @@ dataname<-pairlist_converter(as.list(match.call())$MatchedSets)
     
     UpperMarginKey<-list(title=expression(paste(bold("Distance Direction"))),space="top",columns=2,border=T,background="lightgrey",fontface="bold",cex=0.7,cex.title=0.8)
     
-    PSM_aft_hist<-histogram(as.formula(paste("~",PSM_var,"|",Treatvar)),data=eval(PSM_graph_data[is.na(eval(ll_up$PSM_var))==F]),group=eval(ll$Treatvar),type="count",main=paste("Predicted PSM Scores by",sQuote(ll$Treatvar)),xlab=c("PSM Scores"),col=plotcolors,strip=strip.custom(bg="lightgrey",par.strip.text=list(cex=0.7,fontface="bold")),scales=list(x="same",y="free",alternating=F,tck=c(1,0)),panel=function(x,col=col,...){
-      panel.histogram(x,col=col[packet.number()],...)
-      })
     
-    Matched_dist_comparisons<-xyplot(as.formula(paste(sort(levels(PSM_graph_data[[Treatvar]]),decreasing = T),collapse = "~")),data=PSM_graph_data_match,group=Direction,pch=21,cex=1,col=plotcolors,main=paste("PSM Score by Matched Pair "),auto.key=RightMarginKey,scales=list(tck=c(1,0)),aspect="iso",panel=function(x,y,...){
+    Matched_dist_comparisons<-xyplot(as.formula(paste(sort(levels(PSM_graph_data[[Treatvar]]),decreasing = T),collapse = "~")),data=PSM_graph_data_match,group=Direction,pch=21,cex=1,col=plotcolors,main=paste("PSM Score by Matched Pair "),auto.key=RightMarginKey,scales=list(tck=c(1,0)),xlim=c(0,1),ylim=c(0,1),aspect="iso",panel=function(x,y,...){
       panel.xyplot(x,y,...)
       panel.abline(a=0,b=1,col="black")
       })
     
-    if(is.null(DistGraphScaleTicks)==F){
+    if(!is.null(DistGraphScaleTicks)){
       Matched_dist_comparisons<-update(Matched_dist_comparisons,main="PSM Score by Matched Pair with Labeled Outliers")+as.layer(xyplot(as.formula(paste(sort(levels(PSM_graph_data[[Treatvar]]),decreasing = T),collapse = "~")),data=copy(PSM_graph_data_match)[Outlier=="Outlier"],group=Direction,pch=21,cex=1,col=plotcolors,panel=function(x,y,data=copy(PSM_graph_data_match)[Outlier=="Outlier"],...){
         panel.xyplot(x,y,...)
         panel.pointLabel(x=x,y=y,labels=data$Match_num,cex=0.5)
@@ -161,7 +162,10 @@ dataname<-pairlist_converter(as.list(match.call())$MatchedSets)
         })
       
       grid.arrange(Matched_dist_comparisons,Outlier_dist,ncol=1,heights=c(2,1))
-      } else{Outlier_only="None"}
+    } else{
+        Outlier_only=NULL
+        print(Matched_dist_comparisons)
+        }
     } else{
       Matched_dist_comparisons=NULL
       }
@@ -182,13 +186,13 @@ dataname<-pairlist_converter(as.list(match.call())$MatchedSets)
     cat("\n\tSummary of Propensity Score Differences Between Matches\n-----------------------------------------------------------------------------\n")
     print(PSM_summary)
     
-    return(list(Full_data_wts=Weighted_covariates,Matched_data_wts=Weighted_covariates_graph,Descriptive_stats_wts=Group_means_sds,All_calc=final_results[,colnames(final_results)[-match("Covariates",colnames(final_results))]:=lapply(.SD,function(i) round(i,4)),.SDcols=colnames(final_results)[-match("Covariates",colnames(final_results))]],Compare=setnames(SD_mean_before[copy(final_results)[,c("Covariates","SD_mean_diff"),with=F],on="Covariates"],c("Covariates","SD_means_before_matching","SD_means_after_matching")),PSM_summary=PSM_summary,All_PSMmatches=Matched_dist_comparisons,Outliers_only=Outlier_only,PSM_Hist=PSM_aft_hist))
+    return(list(Full_data_wts=Weighted_covariates,Matched_data_wts=Weighted_covariates_graph,Descriptive_stats_wts=Group_means_sds,All_calc=final_results[,colnames(final_results)[-match("Covariates",colnames(final_results))]:=lapply(.SD,function(i) round(i,4)),.SDcols=colnames(final_results)[-match("Covariates",colnames(final_results))]],Compare=setnames(SD_mean_before[copy(final_results)[,c("Covariates","SD_mean_diff"),with=F],on="Covariates"],c("Covariates","SD_means_before_matching","SD_means_after_matching")),PSM_summary=PSM_summary,All_PSMmatches=Matched_dist_comparisons,Outliers_only=Outlier_only,PSM_Hist=PSM_hist_after))
     } else {
       
       cat("\n\tSummary of Propensity Score Differences Between Matches\n-----------------------------------------------------------------------------\n")
       print(PSM_summary)
       
-      return(list(Full_data_wts=Weighted_covariates,Matched_data_wts=Weighted_covariates_graph,Descriptive_stats_wts=Group_means_sds,All_calc=final_results[,colnames(final_results)[-match("Covariates",colnames(final_results))]:=lapply(.SD,function(i) round(i,4)),.SDcols=colnames(final_results)[-match("Covariates",colnames(final_results))]],SD_means=final_results[,c("Covariates","SD_mean_diff"),with=F],PSM_summary=PSM_summary,All_PSMmatches=Matched_dist_comparisons,Outliers_only=Outlier_only,PSM_Hist=PSM_aft_hist))
+      return(list(Full_data_wts=Weighted_covariates,Matched_data_wts=Weighted_covariates_graph,Descriptive_stats_wts=Group_means_sds,All_calc=final_results[,colnames(final_results)[-match("Covariates",colnames(final_results))]:=lapply(.SD,function(i) round(i,4)),.SDcols=colnames(final_results)[-match("Covariates",colnames(final_results))]],SD_means=final_results[,c("Covariates","SD_mean_diff"),with=F],PSM_summary=PSM_summary,All_PSMmatches=Matched_dist_comparisons,Outliers_only=Outlier_only,PSM_Hist=PSM_hist_after))
     }
 }
 
