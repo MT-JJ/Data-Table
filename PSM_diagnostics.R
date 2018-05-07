@@ -122,13 +122,11 @@ PSM_diagnostics<-function(Matchingcovs,Treatvar,ID_vars,convert_ind=T,ref_vars=N
     if(nrow(glmtest$model)!=nrow(glmtest$data)){
       stop(paste(length(glmtest$na.action),"observations missing values on your matching covariates. Set 'missing_check=T' and rerun."),call. = F)
       } else{final_datapsm<-tmp_data}
-    } else {
-      if(psm==F){
-        final_datapsm<-copy(X)
+    } else if(psm==F){
+        final_datapsm<-tryCatch(copy(X)[Matchingcovs[,c(ID_vars,ref_vars),with=F],on=ID_vars],error=function(e) copy(X))
         } else{
-          final_datapsm<-setnames(copy(X),psm,"psmscore")[,Inverse_weight:=ifelse(as.numeric(eval(ll$Treatvar))==1,1/psmscore,1/(1-psmscore))]
+          final_datapsm<-tryCatch(setnames(copy(X),psm,"psmscore")[,Inverse_weight:=ifelse(as.numeric(eval(ll$Treatvar))==1,1/psmscore,1/(1-psmscore))][Matchingcovs[,c(ID_vars,ref_vars),with=F],on=ID_vars],error=function(e) setnames(copy(X),psm,"psmscore")[,Inverse_weight:=ifelse(as.numeric(eval(ll$Treatvar))==1,1/psmscore,1/(1-psmscore))])
         }
-      }
   
   ####Calculating Descriptive Statistics###########
   cat_vars<-names(which(sapply(copy(final_datapsm)[,-c(Treatvar,ID_vars),with=F],max)==1))
@@ -223,8 +221,7 @@ PSM_diagnostics<-function(Matchingcovs,Treatvar,ID_vars,convert_ind=T,ref_vars=N
       } else {
         cat("\n\t\tSummary of Propensity Scores\n------------------------------------------------------------------------------------\n")
         print(eval(PSM_summary[is.na(eval(ll$Treatvar)),eval(Treatvar):="All"]))
-        cat("\n\tGoodness of Fit Statistics for Logistic Regression\n------------------------------------------------------------------------------------\n")
-        print(pseudo_test)
+        
         
         return(suppressWarnings(list(PSM_data=setnames(copy(final_datapsm)[,-ref_vars,with=F],"psmscore",psm),Descriptive_stats=Group_means_sds[,-grep("^i.",colnames(Group_means_sds)),with=F][Covariates=="psmscore",Covariates:=psm],All_calculations=final_results[Covariates=="psmscore",Covariates:=psm],Pooled_SD=copy(final_results)[,c("Covariates","Pooled_SD"),with=F],SD_Means=copy(final_results)[,c("Covariates","SD_mean_diff"),with=F],PSM_summary=eval(PSM_summary[is.na(eval(ll$Treatvar)),eval(Treatvar):="All"]),Inverse_weights=Inverse_dens,Outcome_vars=tryCatch(Outcome_vars,error=function(e) NULL),Ref_vars=tryCatch(copy(final_datapsm)[,c(ID_vars,Treatvar,ref_vars),with=F]))))
         }
