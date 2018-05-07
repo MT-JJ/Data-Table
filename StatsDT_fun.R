@@ -57,7 +57,7 @@ StatsDT_fn<-function(X,groupvars,outcome_vars=NULL,ID=NULL,stat_col=T,group_col=
   
   raw_results<-Reduce(function(...) merge(...,by=c(groupvars,"Stat"),all=T), results_list)[,lapply(.SD,as.character)][,Stat:=factor(Stat,levels = c("N","Mean","SD"))]
   if(percents==T){
-    percent_cols<-colnames(raw_results)[-match(c(groupvars,"Stat",continuous_var),colnames(raw_results))]
+    percent_cols<-colnames(raw_results)[-match(c(groupvars,"Stat",continuous_vars),colnames(raw_results))]
     raw_results<-copy(raw_results)[Stat=="Mean",eval(percent_cols):=lapply(.SD,function(i) paste0(as.character(round(as.numeric(i)*100,0)),"%")),.SDcols=eval(percent_cols)]
     }
   ####Creating the casting layout for final results starting with whether there are multiple grouping variables and then whether user wants a variable column or if they should be spread in a wide format.
