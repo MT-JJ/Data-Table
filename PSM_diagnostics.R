@@ -92,7 +92,7 @@ PSM_diagnostics<-function(Matchingcovs,Treatvar,ID_vars,convert_ind=T,ref_vars=N
     X<-X[,-outcome_vars,with=F]
   }
   #####Processing Treatment Variable#########
-  ll<-lapply(as.list(match.call(expand.dots = F))[c("Treatvar","ID_vars","psm")],as.name)
+  ll<-tryCatch(lapply(as.list(match.call(expand.dots = F))[c("Treatvar","ID_vars","psm")],as.name),error=function(e) lapply(as.list(match.call(expand.dots = F))[c("Treatvar","ID_vars")],as.name))
   if(verbose){
     if(is.numeric(X[[Treatvar]])){
       print(paste(sQuote(match.call()$Treatvar),"is not of class factor.  Assuming",sQuote(max(X[[Treatvar]])),"is the treatment group."))
